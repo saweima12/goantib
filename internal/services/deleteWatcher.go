@@ -101,7 +101,7 @@ func (dw *DeleteWatcher) doCheckDeleteRequest() {
 			continue
 		}
 
-		if now.Sub(payload.ts) < time.Second*4 {
+		if now.Sub(payload.ts) < time.Second*8 {
 			continue
 		}
 

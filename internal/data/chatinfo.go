@@ -1,6 +1,9 @@
 package data
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 type ChatMember struct {
 	Id   int64
@@ -13,12 +16,13 @@ type ChatInfo struct {
 	allowWords     map[string]struct{}
 	blockWords     map[string]struct{}
 
-	mu sync.Mutex
+	UpdateAt time.Time
+	mu       sync.Mutex
 }
 
-func NewChatInfo(administrator []ChatMember) *ChatInfo {
+func NewChatInfo() *ChatInfo {
 	return &ChatInfo{
-		administrators: administrator,
+		administrators: []ChatMember{},
 		allowMembers:   make([]ChatMember, 0),
 		allowWords:     make(map[string]struct{}),
 		blockWords:     make(map[string]struct{}),
@@ -49,7 +53,27 @@ func (ci *ChatInfo) GetAllowMembers() []ChatMember {
 	return ret
 }
 
-func (ci *ChatInfo) GetAllowWords() []string {
+func (ci *ChatInfo) GetAllowWords() map[string]struct{} {
+	ci.mu.Lock()
+	defer ci.mu.Unlock()
+	ret := make(map[string]struct{})
+	for word := range ci.allowWords {
+		ret[word] = struct{}{}
+	}
+	return ret
+}
+
+func (ci *ChatInfo) GetBlockWords() map[string]struct{} {
+	ci.mu.Lock()
+	defer ci.mu.Unlock()
+	ret := make(map[string]struct{})
+	for word := range ci.blockWords {
+		ret[word] = struct{}{}
+	}
+	return ret
+}
+
+func (ci *ChatInfo) GetAllowWordList() []string {
 	ci.mu.Lock()
 	defer ci.mu.Unlock()
 	ret := make([]string, 0, len(ci.allowWords))
@@ -59,10 +83,10 @@ func (ci *ChatInfo) GetAllowWords() []string {
 	return ret
 }
 
-func (ci *ChatInfo) GetBlockWords() []string {
+func (ci *ChatInfo) GetBlockWordList() []string {
 	ci.mu.Lock()
 	defer ci.mu.Unlock()
-	ret := make([]string, 0, len(ci.blockWords))
+	ret := make([]string, 0, len(ci.allowWords))
 	for word := range ci.blockWords {
 		ret = append(ret, word)
 	}
@@ -91,4 +115,10 @@ func (ci *ChatInfo) RemoveBlockWord(word string) {
 	ci.mu.Lock()
 	defer ci.mu.Unlock()
 	delete(ci.blockWords, word)
+}
+
+func (ci *ChatInfo) UpdateAdministrators(administrators []ChatMember) {
+	ci.mu.Lock()
+	defer ci.mu.Unlock()
+	ci.administrators = administrators
 }

@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"goantisc/internal/checker"
 	"goantisc/internal/core"
 	"goantisc/internal/data"
 	"goantisc/internal/handler"
-	"goantisc/internal/helper/checker"
 	"goantisc/internal/services"
 	"os"
 	"os/signal"
@@ -38,12 +38,11 @@ func main() {
 	if err != nil {
 		log.Logger().Fatalf(err.Error())
 	}
-	_ = dic
 
 	// Initialize the store.
-	chatStore := data.NewChatInfoStore()
-	if err := chatStore.Load("chatinfo.json"); err != nil {
-		if err := chatStore.Save("chatinfo.json"); err != nil {
+	chatStore := data.NewChatInfoStore("chatinfo.json")
+	if err := chatStore.Load(); err != nil {
+		if err := chatStore.Save(); err != nil {
 			log.Logger().Fatal(err.Error())
 		}
 	}
@@ -61,7 +60,7 @@ func main() {
 	delWatcher.Start()
 
 	// Mount the handler.
-	handler.MountGroupMessageHandler(bot, scChecker, delWatcher)
+	handler.MountGroupMessageHandler(bot, servCfg, scChecker, delWatcher, chatStore)
 
 	// Start to polling the data.
 	go bot.Start()
@@ -75,6 +74,8 @@ func main() {
 	fmt.Println("\n")
 	delWatcher.Stop()
 	bot.Stop()
+	chatStore.Save()
+
 	log.Logger().Infof("[Goantib] Shutdown successfully.")
 }
 

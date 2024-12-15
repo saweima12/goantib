@@ -20,19 +20,19 @@ type SimplifiedChineseChecker struct {
 	dict *opencc.OpenCC
 }
 
-func (si *SimplifiedChineseChecker) FilterForbiddenWords(sentence string) []string {
+func (si *SimplifiedChineseChecker) FilterForbiddenWords(sentence string) (diffWord []string, originNum int) {
 	allChStrs := chPtn.FindAllString(sentence, -1)
 
 	fullChSentence := strings.Join(allChStrs, "")
 	if fullChSentence == "" {
-		return []string{}
+		return []string{}, len(allChStrs)
 	}
 
 	originStr := fullChSentence
 	tcStr, err := si.dict.Convert(sentence)
 	if err != nil {
 		log.Logger().Errorf("[OpenCC] Convert failed, err: %v, str: %v", sentence)
-		return []string{}
+		return []string{}, len(allChStrs)
 	}
 
 	// compare origin & tc string
@@ -55,5 +55,5 @@ func (si *SimplifiedChineseChecker) FilterForbiddenWords(sentence string) []stri
 			differences = append(differences, string(runesTC[i]))
 		}
 	}
-	return differences
+	return differences, len(allChStrs)
 }

@@ -5,7 +5,10 @@ import (
 	"goantisc/internal/core/sjson"
 	"os"
 	"sync"
+	"time"
 )
+
+type ChatInfoUpdateFunc func(info *ChatInfo) error
 
 type serializedChatInfo struct {
 	Administrators []ChatMember `json:"administrators"`
@@ -14,18 +17,58 @@ type serializedChatInfo struct {
 	BlockWords     []string     `json:"block_words"`
 }
 
-func NewChatInfoStore() *ChatInfoStore {
+func NewChatInfoStore(path string) *ChatInfoStore {
 	return &ChatInfoStore{
-		data: map[int64]*ChatInfo{},
+		data: make(map[int64]*ChatInfo),
+		mu:   sync.Mutex{},
+		path: path,
 	}
 }
 
 type ChatInfoStore struct {
 	data map[int64]*ChatInfo
+	path string
 	mu   sync.Mutex
 }
 
-func (s *ChatInfoStore) Save(path string) error {
+func (s *ChatInfoStore) GetChatInfo(chatId int64) *ChatInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if origin, ok := s.data[chatId]; ok {
+		ret := ChatInfo{
+			administrators: origin.GetAdministrators(),
+			allowMembers:   origin.GetAllowMembers(),
+			allowWords:     origin.GetAllowWords(),
+			blockWords:     origin.GetBlockWords(),
+		}
+		return &ret
+	}
+
+	ret := ChatInfo{
+		administrators: make([]ChatMember, 0),
+		allowMembers:   make([]ChatMember, 0),
+		allowWords:     make(map[string]struct{}),
+		blockWords:     map[string]struct{}{},
+		UpdateAt:       time.Date(1970, 0, 1, 0, 0, 0, 0, time.Local),
+	}
+	return &ret
+}
+
+func (s *ChatInfoStore) Update(chatId int64, operateFunc ChatInfoUpdateFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if item, ok := s.data[chatId]; ok {
+		operateFunc(item)
+		return
+	}
+
+	s.data[chatId] = NewChatInfo()
+	operateFunc(s.data[chatId])
+}
+
+func (s *ChatInfoStore) Save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -34,18 +77,17 @@ func (s *ChatInfoStore) Save(path string) error {
 		serializedData[id] = serializedChatInfo{
 			Administrators: chatInfo.administrators,
 			AllowMembers:   chatInfo.allowMembers,
-			AllowWords:     chatInfo.GetAllowWords(),
-			BlockWords:     chatInfo.GetBlockWords(),
+			AllowWords:     chatInfo.GetAllowWordList(),
+			BlockWords:     chatInfo.GetBlockWordList(),
 		}
 	}
 
-	// 使用 sjson.Marshal 序列化
 	jsonData, err := sjson.Marshal(serializedData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	file, err := os.Create(path)
+	file, err := os.Create(s.path)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
@@ -59,8 +101,8 @@ func (s *ChatInfoStore) Save(path string) error {
 	return nil
 }
 
-func (s *ChatInfoStore) Load(path string) error {
-	file, err := os.Open(path)
+func (s *ChatInfoStore) Load() error {
+	file, err := os.Open(s.path)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
